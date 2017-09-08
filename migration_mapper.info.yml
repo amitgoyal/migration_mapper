@@ -1,0 +1,8 @@
+name: Migration Mapper
+type: module
+description: UI for mapping content form sourses to use migration api
+core: 8.x
+package: Migration
+dependencies:
+  - migrate_plus
+  - migrate_tools

@@ -1,0 +1,16 @@
+{
+  "name": "drupal/migration_mapper",
+  "type": "drupal-module",
+  "description": "UI for mapping content form sources to use migration api",
+  "keywords": ["Drupal"],
+  "license": "GPL-2.0+",
+  "homepage": "https://www.drupal.org/project/migration_mapper",
+  "minimum-stability": "dev",
+  "support": {
+    "issues": "https://www.drupal.org/project/issues/migration_mapper",
+    "source": "http://cgit.drupalcode.org/migration_mapper"
+  },
+  "require": {
+    "league/csv": "^8.0"
+  }
+}

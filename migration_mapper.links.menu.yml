@@ -1,0 +1,6 @@
+migration_mapper.migration_admin_form:
+  title: 'Migration Mapper'
+  route_name: migration_mapper.migration_admin_form
+  description: 'Admin Migration Mapper'
+  parent: system.admin_config_development
+  weight: 99

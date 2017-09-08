@@ -1,0 +1,8 @@
+migration_mapper.migration_admin_form:
+  path: '/admin/config/development/migration-admin'
+  defaults:
+    _form: '\Drupal\migration_mapper\Form\MigrationAdminForm'
+    _title: 'Migration Mapper'
+  requirements:
+    _access: 'TRUE'
+  
