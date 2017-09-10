@@ -5,4 +5,3 @@ migration_mapper.migration_admin_form:
     _title: 'Migration Mapper'
   requirements:
     _access: 'TRUE'
-  

@@ -4,14 +4,12 @@ namespace Drupal\migration_mapper\Form;
 
 use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
-use Drupal\Driver\Exception\Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\File\FileSystem;
 use Drupal\Core\Entity\ContentEntityType;
 use Drupal\Core\Entity\EntityFieldManager;
 use League\Csv\Reader;
-use Symfony\Component\Yaml\Parser;
 use Symfony\Component\Yaml\Yaml;
 
 /**
@@ -53,6 +51,9 @@ class MigrationAdminForm extends FormBase {
     $this->entityFieldManager = $entity_field_manager;
   }
 
+  /**
+   * {@inheritdoc}
+   */
   public static function create(ContainerInterface $container) {
     return new static(
       $container->get('entity_type.manager'),
@@ -75,7 +76,7 @@ class MigrationAdminForm extends FormBase {
     $entity_type_definations = $this->entityTypeManager->getDefinitions();
     $options = [];
     $allow_config_entities = FALSE;
-    foreach ($entity_type_definations as $name =>  $definition) {
+    foreach ($entity_type_definations as $name => $definition) {
       // @TODO workout configEntities
       if ($definition instanceof ContentEntityType) {
         $type = $definition->get('bundle_entity_type');
@@ -95,7 +96,7 @@ class MigrationAdminForm extends FormBase {
     }
     $class = 'step1';
     if (!empty($form_state->getValue('csvheader'))) {
-      //$class = 'hidden';
+      // $class = 'hidden';.
     }
     $form['entity_type'] = [
       '#type' => 'select',
@@ -137,16 +138,16 @@ class MigrationAdminForm extends FormBase {
         ],
       ];
     }
-      // See https://www.drupal.org/node/2705471.
-      $form['file_field_set']['m_csv_file'] = [
-        '#type' => 'managed_file',
-        '#title' => $this->t('CSV File'),
-        '#upload_location' => 'public://migrate_csv/',
-        '#upload_validators' => [
-          'file_validate_extensions' => ['csv'],
-        ],
-        '#description' => $this->t('Please select A CSV file to create migration from.'),
-      ];
+    // See https://www.drupal.org/node/2705471.
+    $form['file_field_set']['m_csv_file'] = [
+      '#type' => 'managed_file',
+      '#title' => $this->t('CSV File'),
+      '#upload_location' => 'public://migrate_csv/',
+      '#upload_validators' => [
+        'file_validate_extensions' => ['csv'],
+      ],
+      '#description' => $this->t('Please select A CSV file to create migration from.'),
+    ];
 
     $form['json'] = [
       '#type' => 'textarea',
@@ -230,7 +231,7 @@ class MigrationAdminForm extends FormBase {
       if (!empty($data['phrased_yml'])) {
         /*$parser = new Parser();
         $phrased = $parser->parse($data['phrased_yml'], TRUE);
-        */
+         */
         $yaml = Yaml::dump($data['phrased_yml']);
         $form['config'] = [
           '#type' => 'textarea',
@@ -239,7 +240,6 @@ class MigrationAdminForm extends FormBase {
         ];
       }
     }
-
 
     return $form;
   }
@@ -263,7 +263,7 @@ class MigrationAdminForm extends FormBase {
       }
       else {
         // Build the module name.
-       $path = '';
+        $path = '';
         $type_explode = explode('---', $entity_type);
         if (!empty($type_explode[0]) && !empty($type_explode[1])) {
           $type = $type_explode[0];
@@ -284,7 +284,7 @@ class MigrationAdminForm extends FormBase {
       if (!empty($path)) {
         $output['module_path'] = $path;
       }
-      $output['phrased_yml']  = $this->buildMigrationExport($form_values);
+      $output['phrased_yml'] = $this->buildMigrationExport($form_values);
       $form_state->setValue('final_export', $output);
       $form_state->setRebuild(TRUE);
 
@@ -302,14 +302,15 @@ class MigrationAdminForm extends FormBase {
       }
       if (is_object($entity_or_array)) {
         drupal_set_message($this->t('TODO: WORK OUT HOW TO DEAL WITH non bundal entities'), 'warning');
-        //dump($entity_or_array->);
+        // dump($entity_or_array->);
         /*
         // @TODO wotk out how to get all properties of a config entity
-        drupal_set_message($this->t('TODO: WORK OUT HOW TO DEAL WITH config entities'), 'warning');
+        drupal_set_message($this->t('TODO:
+        WORK OUT HOW TO DEAL WITH config entities'), 'warning');
         dump($entity_or_array->getEntityType()->id());
         $id = $entity_or_array->getEntityType()->id();
         $query = $entity_or_array->getQuery()->sort($id)->execute();
-        */
+         */
       }
       $import_type = $form_state->getValue('import_type');
       if (!empty($import_type)) {
@@ -323,20 +324,20 @@ class MigrationAdminForm extends FormBase {
               // Try to validate the file.
               if (is_array($m_csv_file)) {
                 $fid = reset($m_csv_file);
-                //load_file =
+                // load_file =.
                 $file = $this->entityTypeManager->getStorage('file')->load($fid);
                 if (is_object($file)) {
-                 $uri =  $file->getFileUri();
-                 $url = file_create_url($uri);
-                 $path = $this->fileSystem->realpath($uri);
-                 $input_csv = Reader::createFromPath($path);
-                 $input_csv->setDelimiter(',');
-                 try {
-                   $fetchAssoc = $input_csv->fetchAssoc(0);
-                 }
-                 catch (\Exception $e) {
-                   $form_state->setErrorByName('m_csv_file', 'invalid csv format');
-                 }
+                  $uri = $file->getFileUri();
+                  $url = file_create_url($uri);
+                  $path = $this->fileSystem->realpath($uri);
+                  $input_csv = Reader::createFromPath($path);
+                  $input_csv->setDelimiter(',');
+                  try {
+                    $fetchAssoc = $input_csv->fetchAssoc(0);
+                  }
+                  catch (\Exception $e) {
+                    $form_state->setErrorByName('m_csv_file', 'invalid csv format');
+                  }
                 }
               }
               $opt = [
@@ -357,6 +358,7 @@ class MigrationAdminForm extends FormBase {
             }
 
             break;
+
           case 'json':
             $submitted_json = $form_state->getValue('json');
             if (empty($submitted_json)) {
@@ -378,7 +380,7 @@ class MigrationAdminForm extends FormBase {
                 ];
                 if (!empty($decode)) {
                   foreach ($decode as $row => $val) {
-                      $opt[$row] = $row;
+                    $opt[$row] = $row;
                   }
                 }
                 $form_state->setValue('csvheader', $opt);
@@ -386,6 +388,7 @@ class MigrationAdminForm extends FormBase {
               }
             }
             break;
+
           case 'export_content':
             drupal_set_message('export_content');
             break;
@@ -406,9 +409,10 @@ class MigrationAdminForm extends FormBase {
    * Helper function to get the Field definitions.
    *
    * @param string $type_submitted
-   *  The submited entity type.
+   *   The submited entity type.
    *
    * @return \Drupal\Core\Entity\EntityStorageInterface|\Drupal\Core\Field\FieldDefinitionInterface[]
+   *   Public function getSelectedEntityFieldDeff.
    */
   public function getSelectedEntityFieldDeff($type_submitted) {
     $type_explode = explode('---', $type_submitted);
@@ -433,12 +437,13 @@ class MigrationAdminForm extends FormBase {
   /**
    * This function builds the migration data.
    *
-   * @param $form_values
+   * @param array $form_values
+   *   Public function buildMigrationExport array form_values.
    *
-   * @return array.
+   * @return array
    *   This returns an array to be phrased.
    */
-  public function buildMigrationExport($form_values) {
+  public function buildMigrationExport(array $form_values) {
     unset($form_values['has_mapped_data']);
     $module_name = $form_values['module_name'];
     $entity_type = $form_values['entity_type'];
@@ -461,8 +466,8 @@ class MigrationAdminForm extends FormBase {
     $data = [];
     $data['langcode'] = 'en';
     $data['status'] = TRUE;
-    $data['id']  = 'import_'.$bundal;
-    $data['label'] = 'IMPORT-'.$bundal;
+    $data['id'] = 'import_' . $bundal;
+    $data['label'] = 'IMPORT-' . $bundal;
     $data['migration_tags'] = ['Embedded'];
     $data['migration_group'] = 'Data';
 
@@ -508,4 +513,5 @@ class MigrationAdminForm extends FormBase {
 
     return $data;
   }
+
 }
