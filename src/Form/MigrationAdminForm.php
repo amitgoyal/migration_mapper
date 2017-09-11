@@ -114,7 +114,7 @@ class MigrationAdminForm extends FormBase {
       '#options' => [
         'csv' => $this->t('CSV'),
         'json' => $this->t('JSON'),
-        'export_content' => $this->t('Just Export Site Content'),
+        // 'export_content' => $this->t('Just Export Site Content'),.
       ],
       '#title' => $this->t('Import type'),
       '#description' => $this->t('Please select the import type you wish to use.'),
@@ -197,12 +197,23 @@ class MigrationAdminForm extends FormBase {
       if (!empty($map['field_options'])) {
         $field_options = $map['field_options'];
         unset($map['field_options']);
-        foreach ($map as $row) {
-          $form[$row] = [
-            '#type' => 'select',
-            '#title' => $this->t('Row @row', ['@row' => $row]),
-            '#options' => $field_options,
-          ];
+        foreach ($map as $row => $row_val) {
+          if (is_array($row)) {
+            foreach ($row as $row_key => $row_val) {
+              $form[$row_key] = [
+                '#type' => 'select',
+                '#title' => $this->t('Row @row', ['@row' => $row_key]),
+                '#options' => $field_options,
+              ];
+            }
+          }
+          else {
+            $form[$row] = [
+              '#type' => 'select',
+              '#title' => $this->t('Row @row', ['@row' => $row]),
+              '#options' => $field_options,
+            ];
+          }
         }
       }
       $form['has_mapped_data'] = [
@@ -229,14 +240,12 @@ class MigrationAdminForm extends FormBase {
         ];
       }
       if (!empty($data['phrased_yml'])) {
-        /*$parser = new Parser();
-        $phrased = $parser->parse($data['phrased_yml'], TRUE);
-         */
-        $yaml = Yaml::dump($data['phrased_yml']);
+        $yaml = Yaml::dump($data['phrased_yml'], '6', 4);
         $form['config'] = [
           '#type' => 'textarea',
           '#title' => $this->t('Migration config:'),
           '#default_value' => $yaml,
+          '#rows' => 50,
         ];
       }
     }
@@ -271,15 +280,15 @@ class MigrationAdminForm extends FormBase {
           $modulename = $form_state->getValue('module_name');
           $path = $modulename . '/config/install/migrate_plus.migration.' . $bundal . '.yml';
         }
-
       }
+
       foreach ($form_values as $key => $value) {
         if (!empty($key) && in_array($key, $values_to_strip)) {
           unset($form_values[$key]);
         }
       }
-      // @TODO handel $form_values and build migration.
 
+      // @TODO handel $form_values and build migration.
       $output = [];
       if (!empty($path)) {
         $output['module_path'] = $path;
@@ -380,7 +389,14 @@ class MigrationAdminForm extends FormBase {
                 ];
                 if (!empty($decode)) {
                   foreach ($decode as $row => $val) {
-                    $opt[$row] = $row;
+                    if (is_array($val)) {
+                      foreach ($val as $k => $value) {
+                        $opt[$k] = $value;
+                      }
+                    }
+                    else {
+                      $opt[$row] = $row;
+                    }
                   }
                 }
                 $form_state->setValue('csvheader', $opt);
@@ -402,6 +418,7 @@ class MigrationAdminForm extends FormBase {
    * {@inheritdoc}
    */
   public function submitForm(array &$form, FormStateInterface $form_state) {
+    // This should never be called.
     drupal_set_message('hello');
   }
 
@@ -470,15 +487,13 @@ class MigrationAdminForm extends FormBase {
     $data['label'] = 'IMPORT-' . $bundal;
     $data['migration_tags'] = ['Embedded'];
     $data['migration_group'] = 'Data';
-
+    $data['source'] = [];
     // If JSON:
     if (!empty($form_values['jsonData'])) {
       $json = $form_values['jsonData'];
       unset($form_values['jsonData']);
       $default_plugin_type = 'embedded_data';
-      $data['source']['plugin'] = $default_plugin_type;
     }
-
     if (!empty($file_path)) {
       $default_plugin_type = 'plugin';
       $csv_values = [
@@ -495,23 +510,105 @@ class MigrationAdminForm extends FormBase {
     }
 
     // @TODO if csv use CSV pluging.
-
-    $data['source']['data_rows'] = [];
-
     $flipped_values = array_flip($form_values);
+    $mapped_values = [];
     unset($flipped_values['NA']);
+    unset($flipped_values['']);
     foreach ($flipped_values as $field_key => $mapped_key) {
-      $field_info = $field_defs[$field_key];
-      if (is_object($field_info)) {
-        $field_type = $field_info->getType();
+      if (!empty($field_key)) {
+        if (!empty($field_defs[$field_key])) {
+          $field_info = $field_defs[$field_key];
+          if (is_object($field_info)) {
+            $mapped_values[$mapped_key] = $field_info;
+          }
+        }
+        else {
+          drupal_set_message(t('@key With @Value could not be mapped'), ['@key' => $field_key, '@Value' => $mapped_key]);
+        }
       }
-
     }
+    // We now have Field info with data key ad array key.
+    if (!empty($mapped_values)) {
+      if (!empty($json)) {
+        $data['source']['ids'] = [
+          'id' => [
+            'type' => 'integer',
+          ],
+        ];
+        $embed_json_data = $this->setJsonDataRow($mapped_values, $json);
+        foreach ($embed_json_data as $item) {
+          $data['source']['data_rows'][] = $item;
+        }
+      }
+      // TODO: IF CSV MAKE Keys HERE.
+    }
+
+    $data['process'] = [];
+    $data['process']['type'] = [
+      'plugin' => 'default_value',
+      'default_value' => $type,
+    ];
+    $prosess_field_types = $this->prosessFieldTypes($mapped_values);
+    foreach ($prosess_field_types as $pkey => $prosessed_type) {
+      $data['process'][$pkey] = $prosessed_type;
+    }
+
     $data['destination'] = [
       'plugin' => 'entity:' . $type,
     ];
-
     return $data;
+  }
+
+  /**
+   * Function to return embeded data rows.
+   *
+   * @param array $mapped_keys
+   *   An Array of mapped keys with field type object.
+   * @param $json
+   *  The raw submitted json data for embedding.
+   *
+   * @return array
+   *  This returns an array.
+   */
+  private function setJsonDataRow($mapped_keys, $json) {
+    $rows = [];
+    $id = 1;
+    $json = json_decode($json, TRUE);
+    foreach ($json as $item_key => $item) {
+      if (is_array($item)) {
+        $rows[$id]['id'] = $id;
+        foreach ($item as $key => $value) {
+          if (!empty($mapped_keys[$key]) && is_object($mapped_keys[$key])) {
+            $field_config = $mapped_keys[$key];
+            $name = $field_config->getName();
+            $rows[$id][$name] = $value;
+          }
+        }
+        $id++;
+      }
+    }
+    return $rows;
+  }
+
+  /**
+   * Helper function to format "process" key in config export.
+   *
+   * @param array $mapped_keys
+   *   An Array of mapped keys with field type object.
+   *
+   * @return array
+   *  This will return an array.
+   */
+  private function prosessFieldTypes($mapped_keys) {
+    $rows = [];
+    foreach ($mapped_keys as $key => $config) {
+      if (is_object($config)) {
+        // @TODO perhaps set default prosessor plugins ?
+        $name = $config->getName();
+        $rows[$name] = $key;
+      }
+    }
+    return $rows;
   }
 
 }
