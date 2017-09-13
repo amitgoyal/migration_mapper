@@ -5,12 +5,10 @@
 <h3>Option 1 reinstall module</h3>
 <ul>
     <li>drush mr {{ drush_import }}</li>
-    <li>drush pmu {{ module_name }}</li>
+    <li>drush pmu {{ module_name }} -y</li>
     <li>drush en {{ module_name }} -y</li>
     <li>drush mi {{ drush_import }}</li>
 </ul>
 
-<h3>Option 2 config delete</h3>
-<ul>
-<li>drush config-delete migrate_plus.migration.{{ drush_import }}</li>
-</ul>
+<p> Ps. trying to clean from config does not work aka "drush config-delete migrate_plus.migration.{{ drush_import }}" Please reinstall them module.</p>
+<a href="/admin/config/development/migration-admin"> Reset</a>
