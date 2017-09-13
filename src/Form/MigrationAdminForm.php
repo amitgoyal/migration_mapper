@@ -236,7 +236,7 @@ class MigrationAdminForm extends FormBase {
       $data = $form_state->getValue('final_export');
       if (!empty($data['module_path']) && !empty($data['drush_import'])) {
         $form['path'] = [
-          '#markup' => $this->t('<b>Expected Path: </b> @path <br/> <b>Drush:</b> After you created and enabled you module Run "drush ms" and make sure it shows up then run "drush mi @command" <br/> to rollback run "drush mr @command" See Notes below.', [
+          '#markup' => $this->t('<b>Expected Path: </b> @path <br/> <b>Drush:</b> After you created and enabled your module Run "drush ms" and make sure it shows up then run "drush mi @command" <br/> to rollback run "drush mr @command" See Notes below.', [
             '@path' => $data['module_path'],
             '@command' => $data['drush_import'],
           ]),
@@ -244,6 +244,7 @@ class MigrationAdminForm extends FormBase {
       }
       if (!empty($data['phrased_yml'])) {
         $yaml = Yaml::dump($data['phrased_yml'], '6', 2);
+        $yaml = str_replace('~~~', '', $yaml);
         $form['config'] = [
           '#type' => 'textarea',
           '#title' => $this->t('Migration config:'),
@@ -508,7 +509,7 @@ class MigrationAdminForm extends FormBase {
       $default_plugin_type = 'embedded_data';
     }
     if (!empty($file_path)) {
-      $default_plugin_type = 'plugin';
+      $default_plugin_type = 'csv';
       $csv_values = [
         'path' => $file_path,
         'header_row_count' => 1,
@@ -554,6 +555,15 @@ class MigrationAdminForm extends FormBase {
         }
       }
       // TODO: IF CSV MAKE Keys HERE.
+      if (!empty($file_path)) {
+        $data['source']['keys'] = [];
+        // Need to make first colum the key.
+        foreach ($mapped_values as $def_key => $def_val) {
+          $data['source']['keys'][] = $def_key;
+          break;
+        }
+        $data['source']['column_names'] = $this->setCsvKeys($mapped_values, $file_path);
+      }
     }
 
     $data['process'] = [];
@@ -621,6 +631,33 @@ class MigrationAdminForm extends FormBase {
             $rows[$id][$name] = $value;
           }
         }
+        $id++;
+      }
+    }
+    return $rows;
+  }
+
+  /**
+   * Function to return embeded data keys.
+   *
+   * @param array $mapped_keys
+   *   An Array of mapped keys with field type object.
+   * @param string $file_path
+   *  The file path of csv.
+   *
+   * @return array
+   *  This returns an array.
+   */
+  private function setCsvKeys($mapped_keys, $file_path) {
+    $rows = [];
+    $id = 0;
+    foreach ($mapped_keys as $key => $config) {
+      if (is_object($config)) {
+        // Dang you yaml dump.
+        $string_id = '~~~' . $id . '~~~';
+        $rows[$string_id] = [
+          $key => $key
+        ];
         $id++;
       }
     }

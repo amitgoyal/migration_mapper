@@ -1,14 +1,14 @@
-<h3> Migration Note:</h3>
+<h3>Some Migration Note:</h3>
 <p>Please Note if you Import this file with "drush mi {{ drush_import }}" This will put the migration in to the active config storage.</p>
 <p>Resulting in the config to be in drupals config to if you want to make changes to this config you will need to disable / re-enable  the module. seen in "drush ms" and "drush config-list"</p>
 <p> After you run the drush mi import and then roll back you need to follow these steps before changes in the migration file will show up in drupal.</p>
-<h3>Option 1 reinstall module</h3>
+<h3>If You Edit the file You need to reinstall your module!</h3>
 <ul>
     <li>drush mr {{ drush_import }}</li>
     <li>drush pmu {{ module_name }} -y</li>
     <li>drush en {{ module_name }} -y</li>
     <li>drush mi {{ drush_import }}</li>
 </ul>
-
-<p> Ps. trying to clean from config does not work aka "drush config-delete migrate_plus.migration.{{ drush_import }}" Please reinstall them module.</p>
+<p> Ps. trying to clean from config does not work aka "drush config-delete migrate_plus.migration.{{ drush_import }}" Please reinstall your module.</p>
+<p> PPS. This is not 100% prefect please edit your custom migration to get it exaclty how you want it.</p>
 <a href="/admin/config/development/migration-admin"> Reset</a>
