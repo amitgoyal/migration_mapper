@@ -15,10 +15,27 @@ function migration_mapper_help($route_name, RouteMatchInterface $route_match) {
     // Main module help for the migration_mapper module.
     case 'help.page.migration_mapper':
       $output = '';
-      $output .= '<h3>' . t('About') . '</h3>';
-      $output .= '<p>' . t('UI for mapping content form sourses to use migration api') . '</p>';
+      $output .= '<h3>' . t('About:') . '</h3>';
+      $output .= '<p>' . t('UI for mapping content form sources to use migration api') . '</p>';
+      $output .= '<h3>' . t('Drush Commands Help:') . '</h3>';
+      $output .= '<p>' . t('For Drush Migrate comands see:<a href="https://www.drupal.org/node/1561820">https://www.drupal.org/node/1561820</a> or run "drush mi --help" / "drush ms"') . '</p>';
       return $output;
 
     default:
   }
+}
+
+/**
+ * Implements hook_theme().
+ */
+function migration_mapper_theme($existing, $type, $theme, $path) {
+  return [
+    'config_notes' => [
+      'template' => 'config_notes',
+      'variables' => [
+        'module_name' => 'mymodule',
+        'drush_import' => 'import_xxx'
+      ]
+    ],
+  ];
 }

@@ -234,18 +234,29 @@ class MigrationAdminForm extends FormBase {
     if (!empty($form_state->getValue('final_export'))) {
       $form = [];
       $data = $form_state->getValue('final_export');
-      if (!empty($data['module_path'])) {
+      if (!empty($data['module_path']) && !empty($data['drush_import'])) {
         $form['path'] = [
-          '#markup' => $this->t('<b>Expected Path: </b> @path <br/>', ['@path' => $data['module_path']]),
+          '#markup' => $this->t('<b>Expected Path: </b> @path <br/> <b>Drush:</b> After you created and enabled you module Run "drush ms" and make sure it shows up then run "drush mi @command" <br/> to rollback run "drush mr @command" See Notes below.', [
+            '@path' => $data['module_path'],
+            '@command' => $data['drush_import'],
+          ]),
         ];
       }
       if (!empty($data['phrased_yml'])) {
-        $yaml = Yaml::dump($data['phrased_yml'], '6', 4);
+        $yaml = Yaml::dump($data['phrased_yml'], '6', 2);
         $form['config'] = [
           '#type' => 'textarea',
           '#title' => $this->t('Migration config:'),
           '#default_value' => $yaml,
           '#rows' => 50,
+        ];
+
+        $form['note'] = [
+          '#type' => 'inline_template',
+          '#theme' => 'config_notes',
+          '#drush_import' => $data['drush_import'],
+          '#module_name' => $data['module_name'],
+          '#weight' => 200,
         ];
       }
     }
@@ -293,6 +304,8 @@ class MigrationAdminForm extends FormBase {
       if (!empty($path)) {
         $output['module_path'] = $path;
       }
+      $output['module_name'] = $modulename;
+      $output['drush_import'] = 'import_' . $bundal;
       $output['phrased_yml'] = $this->buildMigrationExport($form_values);
       $form_state->setValue('final_export', $output);
       $form_state->setRebuild(TRUE);
@@ -486,7 +499,7 @@ class MigrationAdminForm extends FormBase {
     $data['id'] = 'import_' . $bundal;
     $data['label'] = 'IMPORT-' . $bundal;
     $data['migration_tags'] = ['Embedded'];
-    $data['migration_group'] = 'Data';
+    $data['migration_group'] = 'default';
     $data['source'] = [];
     // If JSON:
     if (!empty($form_values['jsonData'])) {
@@ -546,9 +559,25 @@ class MigrationAdminForm extends FormBase {
     $data['process'] = [];
     $data['process']['type'] = [
       'plugin' => 'default_value',
-      'default_value' => $type,
+      'default_value' => $bundal,
     ];
-    $prosess_field_types = $this->prosessFieldTypes($mapped_values);
+    $data['process']['langcode'] = [
+      'plugin' => 'default_value',
+      'source' => 'language',
+      'default_value' => 'und',
+    ];
+    // Setting USER ID
+    $data['process']['uid'] = [
+      'plugin' => 'default_value',
+      'default_value' => 1,
+    ];
+    if (!empty($json)) {
+      $prosess_field_types = $this->prosessFieldTypes($mapped_values, TRUE);
+    }
+    else {
+      $prosess_field_types = $this->prosessFieldTypes($mapped_values);
+    }
+
     foreach ($prosess_field_types as $pkey => $prosessed_type) {
       $data['process'][$pkey] = $prosessed_type;
     }
@@ -556,6 +585,14 @@ class MigrationAdminForm extends FormBase {
     $data['destination'] = [
       'plugin' => 'entity:' . $type,
     ];
+
+    // SOOOO important.
+    $data['dependencies'] = [
+      'enforced' => [
+        'module' => [$module_name],
+      ],
+    ];
+
     return $data;
   }
 
@@ -595,17 +632,26 @@ class MigrationAdminForm extends FormBase {
    *
    * @param array $mapped_keys
    *   An Array of mapped keys with field type object.
+   * @param bool $json
+   *   This is to flag json field sourse map to same filed
    *
    * @return array
    *  This will return an array.
    */
-  private function prosessFieldTypes($mapped_keys) {
+  private function prosessFieldTypes($mapped_keys, $json = FALSE) {
     $rows = [];
     foreach ($mapped_keys as $key => $config) {
       if (is_object($config)) {
-        // @TODO perhaps set default prosessor plugins ?
+        // @TODO perhaps set default processor plugins here?
         $name = $config->getName();
-        $rows[$name] = $key;
+        if ($json == TRUE) {
+          $rows[$name] = $name;
+        }
+        else {
+          // Is a CSV so map destination with keys.
+          $rows[$name] = $key;
+        }
+
       }
     }
     return $rows;
