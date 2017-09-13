@@ -576,7 +576,7 @@ class MigrationAdminForm extends FormBase {
       'source' => 'language',
       'default_value' => 'und',
     ];
-    // Setting USER ID
+    // Setting USER ID.
     $data['process']['uid'] = [
       'plugin' => 'default_value',
       'default_value' => 1,
@@ -611,13 +611,13 @@ class MigrationAdminForm extends FormBase {
    *
    * @param array $mapped_keys
    *   An Array of mapped keys with field type object.
-   * @param $json
-   *  The raw submitted json data for embedding.
+   * @param string $json
+   *   The raw submitted json data for embedding.
    *
    * @return array
-   *  This returns an array.
+   *   This returns an array.
    */
-  private function setJsonDataRow($mapped_keys, $json) {
+  private function setJsonDataRow(array $mapped_keys, $json) {
     $rows = [];
     $id = 1;
     $json = json_decode($json, TRUE);
@@ -643,12 +643,12 @@ class MigrationAdminForm extends FormBase {
    * @param array $mapped_keys
    *   An Array of mapped keys with field type object.
    * @param string $file_path
-   *  The file path of csv.
+   *   The file path of csv.
    *
    * @return array
-   *  This returns an array.
+   *   This returns an array.
    */
-  private function setCsvKeys($mapped_keys, $file_path) {
+  private function setCsvKeys(array $mapped_keys, $file_path) {
     $rows = [];
     $id = 0;
     foreach ($mapped_keys as $key => $config) {
@@ -656,7 +656,7 @@ class MigrationAdminForm extends FormBase {
         // Dang you yaml dump.
         $string_id = '~~~' . $id . '~~~';
         $rows[$string_id] = [
-          $key => $key
+          $key => $key,
         ];
         $id++;
       }
@@ -670,12 +670,12 @@ class MigrationAdminForm extends FormBase {
    * @param array $mapped_keys
    *   An Array of mapped keys with field type object.
    * @param bool $json
-   *   This is to flag json field sourse map to same filed
+   *   This is to flag json field sourse map to same filed.
    *
    * @return array
-   *  This will return an array.
+   *   This will return an array.
    */
-  private function prosessFieldTypes($mapped_keys, $json = FALSE) {
+  private function prosessFieldTypes(array $mapped_keys, $json = FALSE) {
     $rows = [];
     foreach ($mapped_keys as $key => $config) {
       if (is_object($config)) {

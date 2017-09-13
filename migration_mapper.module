@@ -34,8 +34,8 @@ function migration_mapper_theme($existing, $type, $theme, $path) {
       'template' => 'config_notes',
       'variables' => [
         'module_name' => 'mymodule',
-        'drush_import' => 'import_xxx'
-      ]
+        'drush_import' => 'import_xxx',
+      ],
     ],
   ];
 }
