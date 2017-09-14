@@ -598,7 +598,12 @@ class MigrationAdminForm extends FormBase {
       $field_name = $prosessed_type['name'];
       $field_type = $prosessed_type['type'];
       $field_config = $prosessed_type['config'];
-      $advanced_config_required = $this->formatExportPluginOnConfig($field_name, $pkey, $field_config);
+      if (!empty($json)) {
+        $advanced_config_required = $this->formatExportPluginOnConfig($field_name, $pkey, $field_config, TRUE);
+      }
+      else {
+        $advanced_config_required = $this->formatExportPluginOnConfig($field_name, $pkey, $field_config);
+      }
       if (is_array($advanced_config_required) && count($advanced_config_required) != 0) {
         $data['process'][$pkey] = $advanced_config_required;
         //$data['process'][$pkey] = [
@@ -738,22 +743,117 @@ class MigrationAdminForm extends FormBase {
    * @param string $field_name
    *   The real field name.
    * @param string $pkey
-   *  The mapped field
+   *   The mapped field
    * @param mixed $field_config
    *   This can be bacefield def or FieldConfig obj.
+   * @param bool $json
+   *   This is to flag json field sourse map to same filed.
    *
    * @return array
    *   This returns an array.
    */
-  private function formatExportPluginOnConfig($field_name, $pkey, $field_config) {
+  private function formatExportPluginOnConfig($field_name, $pkey, $field_config, $json = FALSE) {
+    if ($json == TRUE) {
+      $field_name = $pkey;
+    }
     $return = [];
     $type = $field_config->getType();
-    // @TODO the main Development here.
+    // @TODO the main Development IS here.
     $special_types = [
       'entity_reference',
+      'text_with_summary',
+      'datetime',
     ];
     if (in_array($type, $special_types)) {
       // @todo query config to find out what values for processors.
+      switch ($type) {
+        case 'datetime':
+          // THIS IS SCARRY !!! as every one has a different format.
+          $name = $field_config->getName();
+          $return = [
+            'plugin' => 'format_date',
+            'from_timezone' => 'TODO',
+            'source' => $field_name,
+            'to_timezone' => 'UTC',
+          ];
+          break;
+
+        case 'entity_reference':
+          $entity_type_id = $field_config->getTargetEntityTypeId();
+          $handler_settings = $field_config->getSettings('handler_settings');
+          $storage_config = $field_config->getFieldStorageDefinition();
+
+          $settings = $storage_config->getSettings();
+          if (!empty($settings['target_type'])) {
+            $return = [
+              'plugin' => 'entity_generate',
+              'source' => $field_name,
+              'entity_type' => $settings['target_type'],
+              'ignore_case' => TRUE,
+            ];
+            if (!empty($handler_settings['handler_settings']['target_bundles'])) {
+              $target_bundals = implode(',', $handler_settings['handler_settings']['target_bundles']);
+              $return['bundle'] = $target_bundals;
+            }
+            // Could be a view reffrince.
+            if (!empty($handler_settings['handler_settings']['view'])) {
+              $view_name = $handler_settings['handler_settings']['view']['view_name'];
+              $view = $this->entityTypeManager->getStorage('view')->load($view_name);
+              $dependencies = $view->getExecutable()->getDependencies();
+              $bundle_keys = [];
+              if (!empty($dependencies['config'])) {
+                $config_types = [];
+                foreach ($dependencies['config'] as $config_item) {
+                  $check = explode('.type.', $config_item);
+                  if (!empty($check[1])) {
+                    $bundle_keys[] = $check[1];
+                  }
+                }
+              }
+              if (count($bundle_keys) != 0) {
+                $target_bundals = implode(',', $bundle_keys);
+                $return['bundle'] = $target_bundals;
+              }
+            }
+
+            // @TODO find out how to get the bundal.
+            if ($settings['target_type'] == 'node') {
+              $return['bundle_key'] = 'nid';
+              $return['value_key'] = 'title';
+            }
+            if ($settings['target_type'] == 'taxonomy_term') {
+              $return['bundle_key'] = 'vid';
+              $return['value_key'] = 'name';
+            }
+            if (empty($return['bundle_key'])) {
+              $return['bundle_key'] = 'TODO';
+              $return['bundle'] = 'TODO';
+              $return['value_key'] = 'TODO';
+            }
+            if (empty($return['bundle'])) {
+              $return['bundle'] = 'TODO';
+            }
+          }
+          else {
+            // Cant find a entity type.
+            $return = [
+              'plugin' => 'entity_generate',
+              'source' => $field_name,
+            ];
+          }
+          break;
+
+        case 'text_with_summary':
+          $name = $field_config->getName();
+          $return = [
+            $name . '/value' => $field_name,
+            $name . '/format' => [
+              'plugin' => 'default_value',
+              'default_value' => 'full_html',
+            ]
+          ];
+          break;
+      }
     }
     return $return;
   }
