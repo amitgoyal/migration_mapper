@@ -16,3 +16,5 @@ WARNING: Never use this on a live site before testing locally!!!
 
 We suggest use https://www.mockaroo.com/ to make some sample data and have a play
 with some test "custom" migrations before using your own data.
+
+Please remove this module from production Sites.
