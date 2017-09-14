@@ -89,6 +89,12 @@ class MigrationAdminForm extends FormBase {
             }
           }
         }
+        else {
+          if ($definition->id() == 'user') {
+            $new_name = 'user---user';
+            $options[$new_name] = $new_name;
+          }
+        }
       }
       if ($allow_config_entities == TRUE) {
         $options[$name] = $name;
@@ -576,7 +582,7 @@ class MigrationAdminForm extends FormBase {
       'source' => 'language',
       'default_value' => 'und',
     ];
-    // Setting USER ID.
+    // @TODO remove this -> Setting USER ID.
     $data['process']['uid'] = [
       'plugin' => 'default_value',
       'default_value' => 1,
@@ -590,6 +596,14 @@ class MigrationAdminForm extends FormBase {
 
     foreach ($prosess_field_types as $pkey => $prosessed_type) {
       $data['process'][$pkey] = $prosessed_type;
+    }
+
+    if ($bundal == 'user') {
+      // check That the name key exists
+      if (!array_key_exists('name', $mapped_values)) {
+        $data['process']['name'] = 'WARNING THIS MUST BE SET';
+        drupal_set_message(t('Your User Import Needs a "name"'), 'warning');
+      }
     }
 
     $data['destination'] = [
