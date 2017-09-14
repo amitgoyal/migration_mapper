@@ -595,7 +595,24 @@ class MigrationAdminForm extends FormBase {
     }
 
     foreach ($prosess_field_types as $pkey => $prosessed_type) {
-      $data['process'][$pkey] = $prosessed_type;
+      $field_name = $prosessed_type['name'];
+      $field_type = $prosessed_type['type'];
+      $field_config = $prosessed_type['config'];
+      $advanced_config_required = $this->formatExportPluginOnConfig($field_name, $pkey, $field_config);
+      if (is_array($advanced_config_required) && count($advanced_config_required) != 0) {
+        $data['process'][$pkey] = $advanced_config_required;
+        //$data['process'][$pkey] = [
+        //  'plugin' =>  'entity_generate',
+        //  'source' => $field_name,
+        //  'entity_type' => 'taxonomy_term',
+        //  'bundle_key' => 'vid',
+        //  'bundle' => 'dpe_exhibition_document_status',
+        //  'value_key' => 'name',
+        //];
+      }
+      else {
+        $data['process'][$pkey] = $field_name;
+      }
     }
 
     if ($bundal == 'user') {
@@ -693,19 +710,52 @@ class MigrationAdminForm extends FormBase {
     $rows = [];
     foreach ($mapped_keys as $key => $config) {
       if (is_object($config)) {
-        // @TODO perhaps set default processor plugins here?
         $name = $config->getName();
         if ($json == TRUE) {
-          $rows[$name] = $name;
+          $rows[$name] = [
+            'name' => $name,
+            'type' => $config->getType(),
+            'config' => $config,
+          ];
         }
         else {
           // Is a CSV so map destination with keys.
-          $rows[$name] = $key;
+          $rows[$name] = [
+            'name' => $key,
+            'type' => $config->getType(),
+            'config' => $config,
+          ];
         }
 
       }
     }
     return $rows;
+  }
+
+  /**
+   * A function to format advanced field process plugins
+   *
+   * @param string $field_name
+   *   The real field name.
+   * @param string $pkey
+   *  The mapped field
+   * @param mixed $field_config
+   *   This can be bacefield def or FieldConfig obj.
+   *
+   * @return array
+   *   This returns an array.
+   */
+  private function formatExportPluginOnConfig($field_name, $pkey, $field_config) {
+    $return = [];
+    $type = $field_config->getType();
+    // @TODO the main Development here.
+    $special_types = [
+      'entity_reference',
+    ];
+    if (in_array($type, $special_types)) {
+      // @todo query config to find out what values for processors.
+    }
+    return $return;
   }
 
 }
