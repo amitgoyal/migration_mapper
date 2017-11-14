@@ -144,6 +144,20 @@ class MigrationAdminForm extends FormBase {
         ],
       ];
     }
+    if ($class != 'hidden') {
+      $form['file_field_json'] = [
+        '#type' => 'fieldset',
+        '#title' => t('JSON File'),
+        '#states' => [
+          'visible' => [
+            ':input[name="import_type"]' => ['value' => 'json'],
+          ],
+        ],
+        '#attributes' => [
+          'class' => [$class],
+        ],
+      ];
+    }
     // See https://www.drupal.org/node/2705471.
     $form['file_field_set']['m_csv_file'] = [
       '#type' => 'managed_file',
@@ -155,15 +169,27 @@ class MigrationAdminForm extends FormBase {
       '#description' => $this->t('Please select A CSV file to create migration from.'),
     ];
 
-    $form['json'] = [
+    $form['file_field_json']['m_json_file'] = [
+      '#type' => 'managed_file',
+      '#upload_location' => 'public://migrate_json/',
+      '#upload_validators' => [
+        'file_validate_extensions' => ['json'],
+      ],
+      '#description' => $this->t('Please select A JSON file to create migration from.'),
+    ];
+
+    $form['file_field_json']['json_markup'] = [
+      '#type' => 'inline_template',
+      '#template' => '{{ somecontent }}',
+      '#context' => [
+        'somecontent' => "OR"
+      ]
+    ];
+
+    $form['file_field_json']['json'] = [
       '#type' => 'textarea',
       '#title' => $this->t('Paste JSON'),
       '#description' => $this->t('Please paste valid json you wish to generate migration form.'),
-      '#states' => [
-        'visible' => [
-          ':input[name="import_type"]' => ['value' => 'json'],
-        ],
-      ],
       '#attributes' => [
         'class' => [$class],
       ],
@@ -191,6 +217,13 @@ class MigrationAdminForm extends FormBase {
           '#value' => $map['jsonData'],
         ];
         unset($map['jsonData']);
+      }
+      elseif (!empty($map['filePathJson'])) {
+        $form['filePathJson'] = [
+          '#type' => 'hidden',
+          '#value' => $map['filePathJson'],
+        ];
+        unset($map['filePathJson']);
       }
       if (!empty($map['entity_type'])) {
         $form['entity_type'] = [
@@ -390,10 +423,24 @@ class MigrationAdminForm extends FormBase {
 
           case 'json':
             $submitted_json = $form_state->getValue('json');
-            if (empty($submitted_json)) {
+            $m_json_file = $form_state->getValue('m_json_file');
+            if (empty($submitted_json) && empty($m_json_file)) {
               $form_state->setErrorByName('json', 'Please Enter Some Json');
             }
             else {
+              if (!empty($m_json_file)) {
+                // Read JSON File
+                $fid = reset($m_json_file);
+                // load_file =.
+                $file = $this->entityTypeManager->getStorage('file')->load($fid);
+                if (is_object($file)) {
+                  $uri = $file->getFileUri();
+                  $url = file_create_url($uri);
+                  $path = $this->fileSystem->realpath($uri);
+                  $submitted_json = file_get_contents($path);
+                }
+              }
+
               // Strip any unwanted data.
               $submitted_json = str_replace('\r\n', '', $submitted_json);
               // Try to phrase.
@@ -407,6 +454,12 @@ class MigrationAdminForm extends FormBase {
                   'jsonData' => $submitted_json,
                   'entity_type' => $submitted_type,
                 ];
+
+                if (!empty($m_json_file)) {
+                  $opt['filePathJson'] = $url;
+                  unset($opt['jsonData']);
+                }
+
                 if (!empty($decode)) {
                   foreach ($decode as $row => $val) {
                     if (is_array($val)) {
@@ -500,6 +553,10 @@ class MigrationAdminForm extends FormBase {
       $file_path = $form_values['filePath'];
       unset($form_values['filePath']);
     }
+    if (!empty($form_values['filePathJson'])) {
+      $file_path_json = $form_values['filePathJson'];
+      unset($form_values['filePathJson']);
+    }
     $data = [];
     $data['langcode'] = 'en';
     $data['status'] = TRUE;
@@ -514,6 +571,14 @@ class MigrationAdminForm extends FormBase {
       unset($form_values['jsonData']);
       $default_plugin_type = 'embedded_data';
     }
+    elseif (!empty($file_path_json)) {
+      $default_plugin_type = 'url';
+      $json_values = [
+        'urls' => $file_path_json,
+        'data_fetcher_plugin' => 'http',
+        'data_parser_plugin' => 'json',
+      ];
+    }
     if (!empty($file_path)) {
       $default_plugin_type = 'csv';
       $csv_values = [
@@ -527,6 +592,10 @@ class MigrationAdminForm extends FormBase {
     if (!empty($csv_values)) {
       $data['migration_tags'] = ['CSV'];
       $data['source'] = array_merge($data['source'], $csv_values);
+    }
+    if (!empty($json_values)) {
+      $data['migration_tags'] = ['JSON'];
+      $data['source'] = array_merge($data['source'], $json_values);
     }
 
     // @TODO if csv use CSV pluging.
@@ -559,6 +628,14 @@ class MigrationAdminForm extends FormBase {
         foreach ($embed_json_data as $item) {
           $data['source']['data_rows'][] = $item;
         }
+      }
+      elseif (!empty($file_path_json)) {
+        $data['source']['ids'] = [];
+        foreach ($mapped_values as $def_key => $def_val) {
+          $data['source']['ids'][$def_key]['type'] = "string";
+          break;
+        }
+        $data['source']['fields'] = $this->setJsonFields($mapped_values, $file_path_json);
       }
       // TODO: IF CSV MAKE Keys HERE.
       if (!empty($file_path)) {
@@ -695,6 +772,33 @@ class MigrationAdminForm extends FormBase {
           $key => $key,
         ];
         $id++;
+      }
+    }
+    return $rows;
+  }
+
+  /**
+   * Function to return embeded data keys.
+   *
+   * @param array $mapped_keys
+   *   An Array of mapped keys with field type object.
+   * @param string $file_path
+   *   The file path of json.
+   *
+   * @return array
+   *   This returns an array.
+   */
+  private function setJsonFields(array $mapped_keys, $file_path) {
+    $rows = [];
+    foreach ($mapped_keys as $key => $config) {
+      if (is_object($config)) {
+        // Dang you yaml dump.
+        $string_id = '~~~' . $key . '~~~';
+        $rows[] = [
+          'name' => $key,
+          'label' => $key,
+          'selector' => $key,
+        ];
       }
     }
     return $rows;
