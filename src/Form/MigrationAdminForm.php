@@ -493,6 +493,12 @@ class MigrationAdminForm extends FormBase {
                   $opt['filePathJson'] = $url;
                   unset($opt['jsonData']);
                 }
+                $this->_get_data_level($decode);
+                $json_tags = $this->item_selector_items;
+                for ($i = 0; $i < count($json_tags); $i++) {
+                  $keys = array_keys($decode);
+                  $decode = $decode[$keys[0]];
+                }
                 if (!empty($decode)) {
                   foreach ($decode as $row => $val) {
                     if (is_array($val)) {
@@ -751,6 +757,7 @@ class MigrationAdminForm extends FormBase {
           $data['source']['ids'][$def_key]['type'] = "string";
           break;
         }
+        $data['source']['item_selector'] = "/" . implode("/", $this->item_selector_items);
         $data['source']['fields'] = $this->setJsonFields($mapped_values, $file_path_json);
       }
       elseif (!empty($file_path_xml)) {
