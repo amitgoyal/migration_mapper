@@ -11,6 +11,7 @@ use Drupal\Core\Entity\ContentEntityType;
 use Drupal\Core\Entity\EntityFieldManager;
 use League\Csv\Reader;
 use Symfony\Component\Yaml\Yaml;
+use Symfony\Component\Serializer\Encoder\XmlEncoder;
 
 /**
  * Class MigrationAdminForm.
@@ -37,6 +38,8 @@ class MigrationAdminForm extends FormBase {
    * @var \Drupal\Core\Entity\EntityFieldManager
    */
   protected $entityFieldManager;
+
+  protected $item_selector_items = [];
 
   /**
    * Constructs a new MigrationAdminForm object.
@@ -120,6 +123,7 @@ class MigrationAdminForm extends FormBase {
       '#options' => [
         'csv' => $this->t('CSV'),
         'json' => $this->t('JSON'),
+        'xml' => $this->t('XML'),
         // 'export_content' => $this->t('Just Export Site Content'),.
       ],
       '#title' => $this->t('Import type'),
@@ -151,6 +155,20 @@ class MigrationAdminForm extends FormBase {
         '#states' => [
           'visible' => [
             ':input[name="import_type"]' => ['value' => 'json'],
+          ],
+        ],
+        '#attributes' => [
+          'class' => [$class],
+        ],
+      ];
+    }
+    if ($class != 'hidden') {
+      $form['file_field_xml'] = [
+        '#type' => 'fieldset',
+        '#title' => t('XML File'),
+        '#states' => [
+          'visible' => [
+            ':input[name="import_type"]' => ['value' => 'xml'],
           ],
         ],
         '#attributes' => [
@@ -195,6 +213,15 @@ class MigrationAdminForm extends FormBase {
       ],
     ];
 
+    $form['file_field_xml']['m_xml_file'] = [
+      '#type' => 'managed_file',
+      '#upload_location' => 'public://migrate_xml/',
+      '#upload_validators' => [
+        'file_validate_extensions' => ['xml'],
+      ],
+      '#description' => $this->t('Please select A XML file to create migration from.'),
+    ];
+
     if (!empty($form_state->getValue('csvheader'))) {
       $form = [];
       $form['module_name'] = [
@@ -224,6 +251,13 @@ class MigrationAdminForm extends FormBase {
           '#value' => $map['filePathJson'],
         ];
         unset($map['filePathJson']);
+      }
+      elseif (!empty($map['filePathXML'])) {
+        $form['filePathXML'] = [
+          '#type' => 'hidden',
+          '#value' => $map['filePathXML'],
+        ];
+        unset($map['filePathXML']);
       }
       if (!empty($map['entity_type'])) {
         $form['entity_type'] = [
@@ -459,7 +493,73 @@ class MigrationAdminForm extends FormBase {
                   $opt['filePathJson'] = $url;
                   unset($opt['jsonData']);
                 }
+                if (!empty($decode)) {
+                  foreach ($decode as $row => $val) {
+                    if (is_array($val)) {
+                      foreach ($val as $k => $value) {
+                        $opt[$k] = $value;
+                      }
+                    }
+                    else {
+                      $opt[$row] = $row;
+                    }
+                  }
+                }
+                $form_state->setValue('csvheader', $opt);
+                $form_state->setRebuild(TRUE);
+              }
+            }
+            break;
 
+          case 'xml':
+            $m_xml_file = $form_state->getValue('m_xml_file');
+            if (empty($m_xml_file)) {
+              $form_state->setErrorByName('m_xml_file', 'Please Upload XML File.');
+            }
+            else {
+              if (!empty($m_xml_file)) {
+                // Read XML File
+                $fid = reset($m_xml_file);
+                // load_file =.
+                $file = $this->entityTypeManager->getStorage('file')->load($fid);
+                if (is_object($file)) {
+                  $uri = $file->getFileUri();
+                  $url = file_create_url($uri);
+                  $path = $this->fileSystem->realpath($uri);
+                  $submitted_xml = file_get_contents($path);
+
+                  // Getting root tag of XML
+                  $xml = simplexml_load_string($submitted_xml);
+                  $item_root_tag = $xml->getName();
+
+                  // Converting xml data into array format.
+                  $xml_encoder = new XmlEncoder();
+                  $decode = $xml_encoder->decode($submitted_xml, 'xml');
+
+                  // Building item_selector_items array with all the XML tags.
+                  $this->_get_data_level($decode);
+                  array_unshift($this->item_selector_items, $item_root_tag);
+
+                  $xml_tags = $this->item_selector_items;
+                  $arr_level_count = count($xml_tags);
+
+                  // Getting fields for mapping.
+                  for ($i = 0; $i < $arr_level_count; $i++) {
+                    $keys = array_keys($decode);
+                    $decode = $decode[$keys[0]];
+                  }
+                }
+              }
+              // Try to phrase.
+              if (isset($decode) && count($decode) == 0) {
+                $form_state->setErrorByName('m_xml_file', 'Please Upload some valid XML');
+              }
+              else {
+                $opt = [
+                  'field_options' => $field_defs,
+                  'filePathXML' => $url,
+                  'entity_type' => $submitted_type,
+                ];
                 if (!empty($decode)) {
                   foreach ($decode as $row => $val) {
                     if (is_array($val)) {
@@ -557,6 +657,10 @@ class MigrationAdminForm extends FormBase {
       $file_path_json = $form_values['filePathJson'];
       unset($form_values['filePathJson']);
     }
+    if (!empty($form_values['filePathXML'])) {
+      $file_path_xml = $form_values['filePathXML'];
+      unset($form_values['filePathXML']);
+    }
     $data = [];
     $data['langcode'] = 'en';
     $data['status'] = TRUE;
@@ -579,6 +683,14 @@ class MigrationAdminForm extends FormBase {
         'data_parser_plugin' => 'json',
       ];
     }
+    elseif (!empty($file_path_xml)) {
+      $default_plugin_type = 'url';
+      $xml_values = [
+        'urls' => $file_path_xml,
+        'data_fetcher_plugin' => 'http',
+        'data_parser_plugin' => 'xml',
+      ];
+    }
     if (!empty($file_path)) {
       $default_plugin_type = 'csv';
       $csv_values = [
@@ -596,6 +708,10 @@ class MigrationAdminForm extends FormBase {
     if (!empty($json_values)) {
       $data['migration_tags'] = ['JSON'];
       $data['source'] = array_merge($data['source'], $json_values);
+    }
+    if (!empty($xml_values)) {
+      $data['migration_tags'] = ['XML'];
+      $data['source'] = array_merge($data['source'], $xml_values);
     }
 
     // @TODO if csv use CSV pluging.
@@ -636,6 +752,15 @@ class MigrationAdminForm extends FormBase {
           break;
         }
         $data['source']['fields'] = $this->setJsonFields($mapped_values, $file_path_json);
+      }
+      elseif (!empty($file_path_xml)) {
+        $data['source']['ids'] = [];
+        foreach ($mapped_values as $def_key => $def_val) {
+          $data['source']['ids'][$def_key]['type'] = "string";
+          break;
+        }
+        $data['source']['item_selector'] = "/" . implode("/", $this->item_selector_items);
+        $data['source']['fields'] = $this->setXMLFields($mapped_values, $file_path_xml);
       }
       // TODO: IF CSV MAKE Keys HERE.
       if (!empty($file_path)) {
@@ -793,7 +918,6 @@ class MigrationAdminForm extends FormBase {
     foreach ($mapped_keys as $key => $config) {
       if (is_object($config)) {
         // Dang you yaml dump.
-        $string_id = '~~~' . $key . '~~~';
         $rows[] = [
           'name' => $key,
           'label' => $key,
@@ -802,6 +926,46 @@ class MigrationAdminForm extends FormBase {
       }
     }
     return $rows;
+  }
+
+  /**
+   * Function to return embeded data keys.
+   *
+   * @param array $mapped_keys
+   *   An Array of mapped keys with field type object.
+   * @param string $file_path
+   *   The file path of xml.
+   *
+   * @return array
+   *   This returns an array.
+   */
+  private function setXMLFields($mapped_keys, $file_path_xml) {
+    $rows = [];
+    foreach ($mapped_keys as $key => $config) {
+      if (is_object($config)) {
+        // Dang you yaml dump.
+        $rows[] = [
+          'name' => $key,
+          'label' => $key,
+          'selector' => $key,
+        ];
+      }
+    }
+    return $rows;
+  }
+
+  /**
+   * Helper function to get all the array indexes within which actual data exists.
+   * This has been written to find out xpath from xml/json files/arrays.
+   *
+   * @param $array
+   *    This is the array with all the data parsed from xml/json.
+   */
+  private function _get_data_level($array) {
+    if (count($array) == 1) {
+      $this->item_selector_items[] = key($array);
+      $this->_get_data_level($array[key($array)]);
+    }
   }
 
   /**
